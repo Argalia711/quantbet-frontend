@@ -718,6 +718,20 @@ export default function App() {
         ::-webkit-scrollbar{width:4px;height:4px}
         ::-webkit-scrollbar-track{background:${C.surf}}
         ::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px}
+
+        /* ── Mobile ── */
+        @media(max-width:768px){
+          .qb-topbar{ padding:10px 14px !important; flex-wrap:wrap; gap:8px !important; }
+          .qb-topbar-right{ margin-left:0 !important; width:100%; flex-wrap:wrap; gap:10px !important; }
+          .qb-analysis{ grid-template-columns:1fr !important; }
+          .qb-kpis{ grid-template-columns:repeat(3,1fr) !important; }
+          .qb-grid-2{ grid-template-columns:1fr !important; }
+          .qb-sport-sel{ flex-wrap:wrap; }
+        }
+        @media(max-width:480px){
+          .qb-kpis{ grid-template-columns:repeat(2,1fr) !important; }
+          .qb-topbar-right .qb-stat-hide{ display:none; }
+        }
       `}</style>
 
       {/* Toast */}
@@ -728,19 +742,19 @@ export default function App() {
       )}
 
       {/* TOPBAR */}
-      <div style={{background:C.surf,borderBottom:`1px solid ${C.border}`,padding:"14px 28px",display:"flex",alignItems:"center",gap:16}}>
+      <div className="qb-topbar" style={{background:C.surf,borderBottom:`1px solid ${C.border}`,padding:"14px 28px",display:"flex",alignItems:"center",gap:16}}>
         <div style={{fontSize:16,fontWeight:900,letterSpacing:4,color:C.accent}}>QUANTBET</div>
         <div style={{fontSize:9,color:C.muted,letterSpacing:2}}>SISTEMA PROFESIONAL · 7 MERCADOS</div>
-        <div style={{marginLeft:"auto",display:"flex",gap:16,alignItems:"center"}}>
+        <div className="qb-topbar-right" style={{marginLeft:"auto",display:"flex",gap:16,alignItems:"center"}}>
           <div style={{fontSize:9,padding:"3px 10px",borderRadius:4,background:connected?`${C.green}20`:`${C.yellow}20`,color:connected?C.green:C.yellow,border:`1px solid ${connected?C.green:C.yellow}40`}}>
             {connected ? "● BACKEND CONECTADO" : "● MODO DEMO"}
           </div>
           {[
-            ["BANKROLL",`€${stats.bankroll}`,C.green],
-            ["ROI",`${stats.roi>=0?"+":""}${stats.roi}%`,roiColor],
-            ["P&L",`${stats.pl>=0?"+":""}€${stats.pl}`,stats.pl>=0?C.green:C.red],
-          ].map(([l,v,c])=>(
-            <div key={l} style={{textAlign:"center"}}>
+            ["BANKROLL",`€${stats.bankroll}`,C.green, false],
+            ["ROI",`${stats.roi>=0?"+":""}${stats.roi}%`,roiColor, false],
+            ["P&L",`${stats.pl>=0?"+":""}€${stats.pl}`,stats.pl>=0?C.green:C.red, true],
+          ].map(([l,v,c,hide])=>(
+            <div key={l} className={hide?"qb-stat-hide":""} style={{textAlign:"center"}}>
               <div style={{fontSize:16,fontWeight:800,color:c}}>{v}</div>
               <div style={{fontSize:8,color:C.muted,letterSpacing:2}}>{l}</div>
             </div>
@@ -783,7 +797,7 @@ export default function App() {
                 <div style={{fontSize:14,fontWeight:700,marginBottom:2}}>Partidos disponibles hoy</div>
                 <div style={{fontSize:11,color:C.muted}}>{fixtures.length} partidos · {connected?"datos en vivo":"datos de demo"}</div>
               </div>
-              <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              <div className="qb-sport-sel" style={{display:"flex",gap:8,alignItems:"center"}}>
                 {/* Sport selector */}
                 {Object.entries(SPORT_CONFIG).map(([s,cfg])=>(
                   <button key={s} onClick={()=>{
@@ -822,7 +836,7 @@ export default function App() {
 
         {/* ══ ANÁLISIS ══ */}
         {tab==="analysis" && (
-          <div style={{display:"grid",gridTemplateColumns:"240px 1fr",gap:16}}>
+          <div className="qb-analysis" style={{display:"grid",gridTemplateColumns:"240px 1fr",gap:16}}>
             <div>
               <div style={{fontSize:10,color:C.muted,letterSpacing:2,marginBottom:10}}>PARTIDOS DE HOY</div>
               <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -852,7 +866,7 @@ export default function App() {
         {/* ══ DASHBOARD ══ */}
         {tab==="dashboard" && (
           <div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12,marginBottom:16}}>
+            <div className="qb-kpis" style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12,marginBottom:16}}>
               <KPI label="APUESTAS"   value={stats.bets}      sub={`${stats.pending} pendientes`} />
               <KPI label="WIN RATE"   value={`${stats.winrate}%`}  color={stats.winrate>=55?C.green:stats.winrate>=50?C.yellow:C.red} />
               <KPI label="ROI"        value={`${stats.roi>=0?"+":""}${stats.roi}%`} color={roiColor} />
@@ -874,7 +888,7 @@ export default function App() {
               <MiniChart series={stats.bankroll_series} color={C.accent} height={80} />
             </div>
 
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+            <div className="qb-grid-2" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
               <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:20}}>
                 <div style={{fontSize:10,color:C.muted,letterSpacing:2,marginBottom:14}}>DISTRIBUCIÓN W/L</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
@@ -940,7 +954,7 @@ export default function App() {
             {/* Tabla de reglas de riesgo */}
             <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:20}}>
               <div style={{fontSize:10,color:C.muted,letterSpacing:2,marginBottom:14}}>🛡 REGLAS DE RIESGO ACTIVAS</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              <div className="qb-grid-2" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                 {[
                   ["EV mínimo para apostar","4%",C.green],
                   ["Probabilidad mínima","52%",C.green],
@@ -986,7 +1000,7 @@ export default function App() {
                 {/* Interpretación */}
                 <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:20}}>
                   <div style={{fontSize:10,color:C.muted,letterSpacing:2,marginBottom:14}}>CÓMO INTERPRETAR</div>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,fontSize:11}}>
+                  <div className="qb-grid-2" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,fontSize:11}}>
                     {[
                       ["Punto EN la diagonal","Modelo perfectamente calibrado en ese rango",C.accent],
                       ["Punto POR ENCIMA","Modelo conservador — infravalora sus picks",C.green],
