@@ -71,18 +71,32 @@ const C = {
 };
 
 const MARKET_META = {
-  goals:   {icon:"⚽",label:"Goles O/U 2.5",  color:C.green},
-  over05:  {icon:"✅",label:"Más de 0.5 goles",color:C.cyan},
-  btts:    {icon:"🎯",label:"BTTS",            color:C.purple},
-  result:  {icon:"🏆",label:"Resultado 1X2",   color:C.accent},
-  ht:      {icon:"⏱",label:"Resultado Descanso",color:C.orange},
-  cards:   {icon:"🟨",label:"Tarjetas O/U 3.5",color:C.yellow},
-  corners: {icon:"📐",label:"Córners O/U 9.5", color:C.pink},
+  // Football
+  goals:      {icon:"⚽",label:"Goles O/U 2.5",      color:C.green},
+  over05:     {icon:"✅",label:"Más de 0.5 goles",    color:C.cyan},
+  btts:       {icon:"🎯",label:"BTTS",                color:C.purple},
+  result:     {icon:"🏆",label:"Resultado 1X2",       color:C.accent},
+  ht:         {icon:"⏱",label:"Resultado Descanso",  color:C.orange},
+  cards:      {icon:"🟨",label:"Tarjetas O/U 3.5",   color:C.yellow},
+  corners:    {icon:"📐",label:"Córners O/U 9.5",    color:C.pink},
+  // Basketball
+  total:      {icon:"🏀",label:"Puntos O/U",          color:C.orange},
+  // Tennis
+  winner:     {icon:"🎾",label:"Ganador",              color:C.green},
+  total_sets: {icon:"📊",label:"Sets O/U",             color:C.purple},
+};
+
+const SPORT_CONFIG = {
+  football:   {icon:"⚽", label:"Fútbol",      color:"#3b82f6"},
+  basketball: {icon:"🏀", label:"Baloncesto",  color:"#fb923c"},
+  tennis:     {icon:"🎾", label:"Tenis",       color:"#10b981"},
 };
 
 const LEAGUE_COLOR = {
   "La Liga":"#e85d04","Premier":"#3b82f6","Bundesliga":"#d62828",
   "Serie A":"#1d3557","Ligue 1":"#2d6a4f","UCL":"#f4d03f",
+  "NBA":"#c9082a","EuroLeague":"#0e3b8f","ACB":"#ffd700",
+  "ATP Masters 1000":"#1a7f37","WTA 1000":"#c2185b",
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -451,6 +465,7 @@ export default function App() {
   const [analyzing,     setAnalyzing]     = useState(null);
   const [selectedFix,   setSelectedFix]   = useState(null);
   const [bookmakerOdds, setBookmakerOdds] = useState(null);
+  const [sport,         setSport]         = useState("football");
   const [connected,  setConnected]  = useState(false);
   const [loading,    setLoading]    = useState(false);
   const [toast,      setToast]      = useState(null);
@@ -470,10 +485,10 @@ export default function App() {
     });
   },[]);
 
-  const loadAll = useCallback(async()=>{
+  const loadAll = useCallback(async(currentSport = "football")=>{
     setLoading(true);
     const [f,s,b] = await Promise.all([
-      api.get("/api/fixtures/today"),
+      api.get(`/api/fixtures/today?sport=${currentSport}`),
       api.get("/api/stats"),
       api.get("/api/bets"),
     ]);
@@ -499,6 +514,7 @@ export default function App() {
       const result = await api.post("/api/analyze", {
         home: fix.home, away: fix.away,
         league: fix.league,
+        sport:  fix.sport || "football",
         odds: odds || undefined,
       });
       if (result && !result.error) {
@@ -643,17 +659,35 @@ export default function App() {
         {/* ══ PARTIDOS DE HOY ══ */}
         {tab==="today" && (
           <div>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:12}}>
               <div>
                 <div style={{fontSize:14,fontWeight:700,marginBottom:2}}>Partidos disponibles hoy</div>
-                <div style={{fontSize:11,color:C.muted}}>{fixtures.length} partidos · {connected?"cuotas automáticas":"datos de demo"}</div>
+                <div style={{fontSize:11,color:C.muted}}>{fixtures.length} partidos · {connected?"datos en vivo":"datos de demo"}</div>
               </div>
-              {connected && (
-                <button onClick={()=>api.get("/api/fixtures/today").then(r=>r?.fixtures&&setFixtures(r.fixtures))}
-                  style={{padding:"8px 16px",background:`${C.accent}20`,border:`1px solid ${C.accent}`,borderRadius:8,color:C.accent,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>
-                  ↻ ACTUALIZAR
-                </button>
-              )}
+              <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                {/* Sport selector */}
+                {Object.entries(SPORT_CONFIG).map(([s,cfg])=>(
+                  <button key={s} onClick={()=>{
+                    setSport(s);
+                    setFixtures([]);
+                    if(connected) loadAll(s);
+                  }} style={{
+                    padding:"7px 14px",borderRadius:8,fontSize:11,cursor:"pointer",fontFamily:"inherit",
+                    border:`1px solid ${sport===s?cfg.color:C.border}`,
+                    background:sport===s?`${cfg.color}20`:"transparent",
+                    color:sport===s?cfg.color:C.muted,
+                    fontWeight:sport===s?700:400,
+                  }}>
+                    {cfg.icon} {cfg.label}
+                  </button>
+                ))}
+                {connected && (
+                  <button onClick={()=>loadAll(sport)}
+                    style={{padding:"7px 14px",background:`${C.accent}20`,border:`1px solid ${C.accent}`,borderRadius:8,color:C.accent,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>
+                    ↻
+                  </button>
+                )}
+              </div>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:12}}>
               {fixtures.map(fix=>(
