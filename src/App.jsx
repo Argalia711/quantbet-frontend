@@ -153,6 +153,54 @@ function ValueBadge({approved,ev,edge,stake}) {
   );
 }
 
+function BookmakerCompare({data}) {
+  if (!data || !data.bookmakers || data.bookmakers.length === 0) return null;
+  const fields = [
+    {key:"result_home", label:"Local"},
+    {key:"result_draw", label:"Empate"},
+    {key:"result_away", label:"Visitante"},
+    {key:"goals_over",  label:"+2.5"},
+    {key:"goals_under", label:"-2.5"},
+  ];
+  const active = fields.filter(f => data.bookmakers.some(b => b[f.key]));
+  if (active.length === 0) return null;
+  return (
+    <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:16,marginTop:16}}>
+      <div style={{fontSize:10,color:C.muted,letterSpacing:2,marginBottom:12}}>📊 COMPARATIVA DE CASAS</div>
+      <div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+          <thead>
+            <tr>
+              <th style={{textAlign:"left",padding:"4px 8px",fontSize:9,color:C.muted,fontWeight:400,letterSpacing:1}}>CASA</th>
+              {active.map(f=>(
+                <th key={f.key} style={{textAlign:"center",padding:"4px 8px",fontSize:9,color:C.muted,fontWeight:400,whiteSpace:"nowrap"}}>
+                  {f.label}
+                  {data.best[f.key] && <div style={{color:C.green,fontSize:8,marginTop:1}}>↑{data.best[f.key][1]?.toFixed(2)}</div>}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.bookmakers.map((bk,i)=>(
+              <tr key={bk.name} style={{borderTop:`1px solid ${C.border}`,background:i%2===0?"transparent":`${C.surf}50`}}>
+                <td style={{padding:"6px 8px",color:C.text,fontWeight:600,whiteSpace:"nowrap",fontSize:10}}>{bk.name}</td>
+                {active.map(f=>{
+                  const isBest = data.best[f.key]?.[0] === bk.name;
+                  return (
+                    <td key={f.key} style={{textAlign:"center",padding:"6px 8px",fontWeight:isBest?800:400,color:isBest?C.green:bk[f.key]?C.text:C.muted}}>
+                      {bk[f.key] ? bk[f.key].toFixed(2) : "—"}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // ══════════════════════════════════════════════════════════════
 // FIXTURE CARD
 // ══════════════════════════════════════════════════════════════
@@ -194,7 +242,7 @@ function FixtureCard({fix, onAnalyze, analyzing, selected}) {
 // ANALYSIS PANEL
 // ══════════════════════════════════════════════════════════════
 
-function AnalysisPanel({result, onBet, bankroll}) {
+function AnalysisPanel({result, onBet, bankroll, bookmakerOdds}) {
   const [placingId, setPlacingId] = useState(null);
   const [placed,    setPlaced]    = useState({});
 
@@ -234,8 +282,10 @@ function AnalysisPanel({result, onBet, bankroll}) {
         )}
       </div>
 
+      <BookmakerCompare data={bookmakerOdds} />
+
       {/* Mercados */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginTop:16}}>
         {Object.entries(result.markets||{}).map(([market, probs]) => {
           const meta = MARKET_META[market] || {icon:"?",label:market,color:C.muted};
           const picks = (result.picks||[]).filter(p=>p.market===market);
@@ -397,9 +447,10 @@ export default function App() {
   const [fixtures,   setFixtures]   = useState(MOCK_FIXTURES);
   const [stats,      setStats]      = useState(MOCK_STATS);
   const [bets,       setBets]       = useState(MOCK_BETS);
-  const [analysis,   setAnalysis]   = useState(null);
-  const [analyzing,  setAnalyzing]  = useState(null);
-  const [selectedFix,setSelectedFix]= useState(null);
+  const [analysis,      setAnalysis]      = useState(null);
+  const [analyzing,     setAnalyzing]     = useState(null);
+  const [selectedFix,   setSelectedFix]   = useState(null);
+  const [bookmakerOdds, setBookmakerOdds] = useState(null);
   const [connected,  setConnected]  = useState(false);
   const [loading,    setLoading]    = useState(false);
   const [toast,      setToast]      = useState(null);
@@ -435,11 +486,16 @@ export default function App() {
   const handleAnalyze = async (fix) => {
     setSelectedFix(fix.fixture_id);
     setAnalyzing(fix.fixture_id);
+    setBookmakerOdds(null);
     setTab("analysis");
 
     if (connected) {
-      // Primero buscar cuotas automáticas
-      const odds = await api.get(`/api/odds?home=${encodeURIComponent(fix.home)}&away=${encodeURIComponent(fix.away)}&league=${encodeURIComponent(fix.league)}`);
+      // Cuotas + comparativa de casas en paralelo
+      const [odds, compare] = await Promise.all([
+        api.get(`/api/odds?home=${encodeURIComponent(fix.home)}&away=${encodeURIComponent(fix.away)}&league=${encodeURIComponent(fix.league)}`),
+        api.get(`/api/odds/compare?home=${encodeURIComponent(fix.home)}&away=${encodeURIComponent(fix.away)}&league=${encodeURIComponent(fix.league)}`),
+      ]);
+      if (compare?.bookmakers) setBookmakerOdds(compare);
       const result = await api.post("/api/analyze", {
         home: fix.home, away: fix.away,
         league: fix.league,
@@ -631,7 +687,7 @@ export default function App() {
                 ))}
               </div>
             </div>
-            <AnalysisPanel result={analysis} onBet={handleBet} bankroll={stats.bankroll} />
+            <AnalysisPanel result={analysis} onBet={handleBet} bankroll={stats.bankroll} bookmakerOdds={bookmakerOdds} />
           </div>
         )}
 
