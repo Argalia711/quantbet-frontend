@@ -167,6 +167,114 @@ function ValueBadge({approved,ev,edge,stake}) {
   );
 }
 
+function CalibrationChart({buckets}) {
+  if (!buckets || buckets.length === 0) return null;
+
+  // SVG layout
+  const W=400, H=220, mx=44, my=12, bx=36, by=32;
+  const pw = W-mx-bx, ph = H-my-by;  // plot width/height
+
+  const withData = buckets.filter(b => b.actual !== null);
+
+  // Scale helpers
+  const sx = (i) => mx + (i / 10) * pw + pw/20;  // center of bucket i
+  const sy = (v) => my + ph - (v/100)*ph;          // y for value 0-100
+
+  const barW = pw/10 - 4;
+
+  return (
+    <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:20}}>
+      <div style={{fontSize:10,color:C.muted,letterSpacing:2,marginBottom:4}}>CALIBRACIÓN DEL MODELO</div>
+      <div style={{fontSize:11,color:C.muted,marginBottom:16}}>
+        Cuando el modelo dice 60%, ¿gana el 60% de las veces? La línea diagonal es la calibración perfecta.
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",maxWidth:500}}>
+        {/* Grid lines Y */}
+        {[0,25,50,75,100].map(v=>(
+          <g key={v}>
+            <line x1={mx} y1={sy(v)} x2={W-bx} y2={sy(v)} stroke={C.border} strokeWidth="0.5"/>
+            <text x={mx-6} y={sy(v)+4} textAnchor="end" fontSize="9" fill={C.muted}>{v}%</text>
+          </g>
+        ))}
+
+        {/* Perfect calibration diagonal */}
+        <line x1={mx} y1={sy(0)} x2={W-bx} y2={sy(100)}
+              stroke={C.muted} strokeWidth="1" strokeDasharray="4,3" opacity="0.6"/>
+        <text x={W-bx+4} y={sy(100)+4} fontSize="8" fill={C.muted}>ideal</text>
+
+        {/* Bars */}
+        {buckets.map((b,i) => {
+          if (b.actual === null) return null;
+          const x    = mx + (i/10)*pw + 2;
+          const diff = b.actual - b.predicted;
+          const col  = diff >= 0 ? C.green : C.red;
+          const yTop = sy(Math.max(b.actual, 0));
+          const barH = Math.abs(sy(0) - sy(b.actual));
+          return (
+            <g key={b.bucket}>
+              <rect x={x} y={yTop} width={barW} height={barH}
+                    fill={col} opacity="0.25" rx="2"/>
+              {/* Actual dot */}
+              <circle cx={sx(i)} cy={sy(b.actual)} r="4" fill={col}/>
+              {/* Total bets label */}
+              {b.total > 0 && (
+                <text x={sx(i)} y={H-by+14} textAnchor="middle" fontSize="8" fill={C.muted}>
+                  {b.total}
+                </text>
+              )}
+            </g>
+          );
+        })}
+
+        {/* X axis labels */}
+        {buckets.map((b,i)=>(
+          <text key={b.bucket} x={sx(i)} y={H-by+26} textAnchor="middle" fontSize="8" fill={C.muted}>
+            {b.mid}%
+          </text>
+        ))}
+
+        {/* Axes */}
+        <line x1={mx} y1={my} x2={mx} y2={H-by} stroke={C.border} strokeWidth="1"/>
+        <line x1={mx} y1={H-by} x2={W-bx} y2={H-by} stroke={C.border} strokeWidth="1"/>
+
+        {/* Axis labels */}
+        <text x={mx-30} y={H/2} textAnchor="middle" fontSize="8" fill={C.muted}
+              transform={`rotate(-90,${mx-30},${H/2})`}>Tasa real</text>
+        <text x={(W-bx+mx)/2} y={H-2} textAnchor="middle" fontSize="8" fill={C.muted}>
+          Prob. predicha
+        </text>
+      </svg>
+
+      {/* Legend */}
+      <div style={{display:"flex",gap:20,marginTop:12,fontSize:10,color:C.muted}}>
+        <span><span style={{color:C.green}}>■</span> Por encima — modelo conservador</span>
+        <span><span style={{color:C.red}}>■</span> Por debajo — modelo demasiado confiado</span>
+        <span style={{color:C.muted}}>Nº = apuestas en ese rango</span>
+      </div>
+
+      {/* Stats summary */}
+      {withData.length > 0 && (
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginTop:16}}>
+          {[
+            ["Buckets con datos", withData.length, C.accent],
+            ["Mejor calibrado",
+              withData.reduce((a,b)=>Math.abs(b.actual-b.predicted)<Math.abs(a.actual-a.predicted)?b:a).bucket,
+              C.green],
+            ["Error medio",
+              `${(withData.reduce((s,b)=>s+Math.abs(b.actual-b.predicted),0)/withData.length).toFixed(1)}%`,
+              C.yellow],
+          ].map(([l,v,c])=>(
+            <div key={l} style={{background:C.surf,borderRadius:8,padding:"10px",textAlign:"center"}}>
+              <div style={{fontSize:14,fontWeight:800,color:c}}>{v}</div>
+              <div style={{fontSize:9,color:C.muted,marginTop:2}}>{l}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BookmakerCompare({data}) {
   if (!data || !data.bookmakers || data.bookmakers.length === 0) return null;
   const fields = [
@@ -466,6 +574,7 @@ export default function App() {
   const [selectedFix,   setSelectedFix]   = useState(null);
   const [bookmakerOdds, setBookmakerOdds] = useState(null);
   const [sport,         setSport]         = useState("football");
+  const [calibration,   setCalibration]   = useState(null);
   const [connected,  setConnected]  = useState(false);
   const [loading,    setLoading]    = useState(false);
   const [toast,      setToast]      = useState(null);
@@ -484,6 +593,15 @@ export default function App() {
       }
     });
   },[]);
+
+  // Cargar calibración cuando se abre el tab
+  useEffect(()=>{
+    if (tab==="calibration" && connected && !calibration) {
+      api.get("/api/calibration").then(r=>{
+        if (r?.buckets) setCalibration(r.buckets);
+      });
+    }
+  },[tab, connected]);
 
   const loadAll = useCallback(async(currentSport = "football")=>{
     setLoading(true);
@@ -643,6 +761,7 @@ export default function App() {
           ["bets","📋 Apuestas"],
           ["dashboard","📊 Dashboard"],
           ["markets","🎯 Mercados"],
+          ["calibration","📈 Calibración"],
         ].map(([id,label])=>(
           <button key={id} onClick={()=>setTab(id)}
             style={{background:"none",border:"none",padding:"12px 18px",cursor:"pointer",
@@ -841,6 +960,58 @@ export default function App() {
                 ))}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ══ CALIBRACIÓN ══ */}
+        {tab==="calibration" && (
+          <div>
+            <div style={{fontSize:14,fontWeight:700,marginBottom:4}}>Calibración del modelo</div>
+            <div style={{fontSize:11,color:C.muted,marginBottom:20}}>
+              Necesitas al menos 20-30 apuestas liquidadas para que el gráfico sea significativo.
+              Mientras más apuestas, más fiable la calibración.
+            </div>
+
+            {!connected ? (
+              <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:32,textAlign:"center",color:C.muted}}>
+                <div style={{fontSize:32,marginBottom:12}}>📊</div>
+                <div>Conecta el backend para ver la calibración real</div>
+              </div>
+            ) : !calibration ? (
+              <div style={{textAlign:"center",padding:40}}><Spinner/></div>
+            ) : (
+              <div style={{display:"grid",gap:16}}>
+                <CalibrationChart buckets={calibration}/>
+
+                {/* Interpretación */}
+                <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:20}}>
+                  <div style={{fontSize:10,color:C.muted,letterSpacing:2,marginBottom:14}}>CÓMO INTERPRETAR</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,fontSize:11}}>
+                    {[
+                      ["Punto EN la diagonal","Modelo perfectamente calibrado en ese rango",C.accent],
+                      ["Punto POR ENCIMA","Modelo conservador — infravalora sus picks",C.green],
+                      ["Punto POR DEBAJO","Modelo demasiado confiado — sobrevalora",C.red],
+                      ["Buckets vacíos","Pocas apuestas en ese rango de probabilidad",C.muted],
+                    ].map(([t,d,c])=>(
+                      <div key={t} style={{background:C.surf,borderRadius:8,padding:"12px"}}>
+                        <div style={{color:c,fontWeight:700,marginBottom:4}}>{t}</div>
+                        <div style={{color:C.muted,fontSize:10}}>{d}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <button onClick={()=>{
+                  setCalibration(null);
+                  api.get("/api/calibration").then(r=>r?.buckets&&setCalibration(r.buckets));
+                }} style={{
+                  padding:"10px",background:`${C.accent}15`,border:`1px solid ${C.accent}40`,
+                  borderRadius:8,color:C.accent,fontSize:11,cursor:"pointer",fontFamily:"inherit",
+                }}>
+                  ↻ Recargar calibración
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
